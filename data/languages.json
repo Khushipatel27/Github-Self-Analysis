@@ -1,0 +1,19 @@
+{
+  "DSCI551_Foundation-of-Data-Management": {
+    "Python": 46537,
+    "Jupyter Notebook": 28593
+  },
+  "Movie-Recommendation": {
+    "Jupyter Notebook": 84269,
+    "Python": 2116
+  },
+  "Comprehensive-Sales-EDA-Dashboard": {
+    "Python": 17557
+  },
+  "Car-Crash-Detection": {
+    "Jupyter Notebook": 747148
+  },
+  "Electricity-Demand-Forecasting-with-LSTM-SARSA": {
+    "Jupyter Notebook": 963656
+  }
+}

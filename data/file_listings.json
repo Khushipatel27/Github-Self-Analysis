@@ -1,0 +1,283 @@
+{
+  "DSCI551_Foundation-of-Data-Management": [
+    {
+      "name": "HW01",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "HW02",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "HW03",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "HW04",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "HW05",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "Project",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 226
+    }
+  ],
+  "Olympic_EDA_Tabelau": [
+    {
+      "name": "Olympics-EDA.twbx",
+      "type": "file",
+      "size": 3704314
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 5243
+    },
+    {
+      "name": "city_loc.csv",
+      "type": "file",
+      "size": 946
+    },
+    {
+      "name": "city_loc.xlsx",
+      "type": "file",
+      "size": 5769
+    },
+    {
+      "name": "olympics_cleaned_v4.csv",
+      "type": "file",
+      "size": 22854139
+    },
+    {
+      "name": "olympics_cleaned_v4.xlsx",
+      "type": "file",
+      "size": 10982468
+    }
+  ],
+  "Movie-Recommendation": [
+    {
+      "name": ".env",
+      "type": "file",
+      "size": 0
+    },
+    {
+      "name": ".gitignore",
+      "type": "file",
+      "size": 126
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 1758
+    },
+    {
+      "name": "app.py",
+      "type": "file",
+      "size": 2116
+    },
+    {
+      "name": "movie.ipynb",
+      "type": "file",
+      "size": 84269
+    },
+    {
+      "name": "movie_dict.pkl",
+      "type": "file",
+      "size": 2216678
+    },
+    {
+      "name": "movies.pkl",
+      "type": "file",
+      "size": 2235263
+    },
+    {
+      "name": "tmdb_5000_credits.csv",
+      "type": "file",
+      "size": 40044293
+    },
+    {
+      "name": "tmdb_5000_movies.csv",
+      "type": "file",
+      "size": 5698602
+    }
+  ],
+  "Face-Recognition-Attendance-System": [
+    {
+      "name": ".vscode",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "Dataset",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "Index.ipynb",
+      "type": "file",
+      "size": 0
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 3781
+    },
+    {
+      "name": "attendance_2025-08-27_15-05-11.csv",
+      "type": "file",
+      "size": 82
+    },
+    {
+      "name": "attendance_2025-09-09_12-31-16.csv",
+      "type": "file",
+      "size": 149
+    },
+    {
+      "name": "attendance_2025-09-09_12-39-27.csv",
+      "type": "file",
+      "size": 113
+    },
+    {
+      "name": "face_recognition_model.pkl",
+      "type": "file",
+      "size": 12150369
+    },
+    {
+      "name": "trained_face_model.pkl",
+      "type": "file",
+      "size": 14930786
+    }
+  ],
+  "Comprehensive-Sales-EDA-Dashboard": [
+    {
+      "name": ".vscode",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "Dataset_Superstore.csv",
+      "type": "file",
+      "size": 2277811
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 4849
+    },
+    {
+      "name": "Requirements.txt",
+      "type": "file",
+      "size": 94
+    },
+    {
+      "name": "app1.py",
+      "type": "file",
+      "size": 17557
+    },
+    {
+      "name": "index.ipynb",
+      "type": "file",
+      "size": 0
+    }
+  ],
+  "Car-Crash-Detection": [
+    {
+      "name": ".gitignore",
+      "type": "file",
+      "size": 116
+    },
+    {
+      "name": "Images",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 4255
+    },
+    {
+      "name": "Runs",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "detection_report.csv",
+      "type": "file",
+      "size": 1170
+    },
+    {
+      "name": "main.ipynb",
+      "type": "file",
+      "size": 37091
+    },
+    {
+      "name": "output_crash_detection.mp4",
+      "type": "file",
+      "size": 1681280
+    },
+    {
+      "name": "requirements.txt",
+      "type": "file",
+      "size": 77
+    },
+    {
+      "name": "train",
+      "type": "dir",
+      "size": 0
+    },
+    {
+      "name": "video_final",
+      "type": "dir",
+      "size": 0
+    }
+  ],
+  "Electricity-Demand-Forecasting-with-LSTM-SARSA": [
+    {
+      "name": "DL.ipynb",
+      "type": "file",
+      "size": 963656
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "size": 3218
+    },
+    {
+      "name": "continuous dataset.csv",
+      "type": "file",
+      "size": 10524179
+    },
+    {
+      "name": "requirements.txt",
+      "type": "file",
+      "size": 62
+    }
+  ],
+  "Dataset": [
+    {
+      "name": "Flicker8k_Dataset.zip",
+      "type": "file",
+      "size": 3257357
+    },
+    {
+      "name": "Flickr8k_text.zip",
+      "type": "file",
+      "size": 2340801
+    }
+  ]
+}
