@@ -14,7 +14,6 @@ Watch the Demo:- https://youtu.be/kv3Vd-hu0kM
 4. **Portfolio Gaps**: Despite strong backend/data skills, the portfolio lacks frontend and deployment projects — a common gap for CS students.
 5. **Growth Trajectory**: Repository creation rate is accelerating, with forecasting suggesting continued upward momentum.
 
-> _Note: These are template findings — your actual insights will be generated when you run the analysis on your own data._
 
 ## Model Comparison Table
 
