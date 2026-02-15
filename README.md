@@ -4,7 +4,7 @@ Analyze your GitHub digital footprint using **local LLMs** and traditional data 
 
 ## Demo Video
 
-[Watch the Demo] https://youtu.be/kv3Vd-hu0kM
+Watch the Demo:- https://youtu.be/kv3Vd-hu0kM
 
 ## Key Findings (Top 5 Insights)
 
