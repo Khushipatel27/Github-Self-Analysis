@@ -32,11 +32,11 @@ import time
 import argparse
 from datetime import datetime
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# creating the data directory if it doesn't exist yet
-# all JSON files will be saved here
+# default path — overridden in main() to data/{username}/
+# kept at module level so dashboard can patch it via: import collect_data as cd; cd.Dataset_Path = ...
 Dataset_Path = Path("data")
-Dataset_Path.mkdir(exist_ok=True)
 
 # base URL for all GitHub API calls
 BASE_URL = "https://api.github.com"
@@ -54,13 +54,30 @@ def request_making(url, headers, params=None):
     This way the rest of the code doesn't need to worry about rate limits
     at all - it just calls request_making and gets back a response.
     """
-    response = requests.get(url, headers=headers, params=params)
+    def _get(hdrs):
+        try:
+            return requests.get(url, headers=hdrs, params=params, timeout=30)
+        except requests.exceptions.ConnectionError as e:
+            print(f"  Connection error, skipping: {e}")
+            r = requests.models.Response()
+            r.status_code = 503
+            return r
+
+    response = _get(headers)
+
+    if response.status_code == 401:
+        # token is invalid or expired — strip it and retry unauthenticated
+        print("  WARNING: GitHub token is invalid (401). Retrying without token.")
+        anon_headers = {k: v for k, v in headers.items() if k != "Authorization"}
+        response = _get(anon_headers)
+
     if response.status_code == 403 and "rate limit" in response.text.lower():
         reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
         wait = max(reset_time - int(time.time()), 1)
         print(f"  Rate limited. Waiting {wait}s...")
         time.sleep(wait)
-        response = requests.get(url, headers=headers, params=params)
+        response = _get(headers)
+
     return response
 
 
@@ -143,26 +160,36 @@ def collecting_commits(username, repos, headers, max_repos=30):
 
     Saves to: data/commits.json
     """
-    print(f"[3/6] Collecting commits (up to {max_repos} repos)...")
-    all_commits = []
-    # sorting repos by pushed_at date so we start with the most recently active
+    print(f"[3/6] Collecting commits (up to {max_repos} repos, parallel)...")
     sorted_repos = sorted(repos, key=lambda r: r.get("pushed_at") or "", reverse=True)
+    user_lower   = username.lower()
 
-    for repo in sorted_repos[:max_repos]:
+    def fetch_commits_for_repo(repo):
         repo_name = repo["full_name"]
         resp = request_making(
             f"{BASE_URL}/repos/{repo_name}/commits",
             headers,
-            params={"author": username, "per_page": 100}
+            params={"per_page": 100}
         )
-        if resp.status_code == 200:
-            commits = resp.json()
-            # tagging each commit with the repo it came from
-            for c in commits:
+        if resp.status_code != 200:
+            return []
+        matched = []
+        for c in resp.json():
+            a_login = (c.get("author")    or {}).get("login", "").lower()
+            c_login = (c.get("committer") or {}).get("login", "").lower()
+            if a_login == user_lower or c_login == user_lower:
                 c["_repo"] = repo_name
-            all_commits.extend(commits)
-            if commits:
-                print(f"  -> {repo['name']}: {len(commits)} commits")
+                matched.append(c)
+        if matched:
+            print(f"  -> {repo['name']}: {len(matched)} commits")
+        return matched
+
+    all_commits = []
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        futures = {ex.submit(fetch_commits_for_repo, r): r
+                   for r in sorted_repos[:max_repos]}
+        for fut in as_completed(futures):
+            all_commits.extend(fut.result())
 
     with open(Dataset_Path / "commits.json", "w") as f:
         json.dump(all_commits, f, indent=2)
@@ -187,15 +214,22 @@ def collecting_languages(repos, headers):
 
     Saves to: data/languages.json
     """
-    print(f"[4/6] Collecting language data...")
-    lang_data = {}
-    for repo in repos:
-        repo_name = repo["full_name"]
-        resp = request_making(f"{BASE_URL}/repos/{repo_name}/languages", headers)
+    print(f"[4/6] Collecting language data (parallel)...")
+
+    def fetch_languages_for_repo(repo):
+        resp = request_making(
+            f"{BASE_URL}/repos/{repo['full_name']}/languages", headers)
         if resp.status_code == 200:
             langs = resp.json()
             if langs:
-                lang_data[repo["name"]] = langs
+                return repo["name"], langs
+        return repo["name"], None
+
+    lang_data = {}
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        for name, langs in ex.map(fetch_languages_for_repo, repos):
+            if langs:
+                lang_data[name] = langs
 
     with open(Dataset_Path / "languages.json", "w") as f:
         json.dump(lang_data, f, indent=2)
@@ -254,42 +288,41 @@ def collect_repo_contents(repos, headers, max_repos=15):
 
     Saves to: data/readmes.json, data/file_listings.json
     """
-    print(f"[6/6] Collecting README files and repo contents...")
-    readmes = {}
-    file_listings = {}
-    # sorting by stars so we prioritize the most visible repos
+    print(f"[6/6] Collecting README files and repo contents (parallel)...")
+    import base64 as _b64
     sorted_repos = sorted(repos, key=lambda r: r.get("stargazers_count", 0), reverse=True)
 
-    for repo in sorted_repos[:max_repos]:
-        repo_name = repo["full_name"]
+    def fetch_repo_contents(repo):
+        repo_name   = repo["full_name"]
+        readme_text = None
+        file_list   = None
 
-        # fetching the README file
-        # GitHub returns it as base64 encoded content which we decode to plain text
-        resp = request_making(
-            f"{BASE_URL}/repos/{repo_name}/readme",
-            headers
-        )
-        if resp.status_code == 200:
-            import base64
-            readme_data = resp.json()
+        r1 = request_making(f"{BASE_URL}/repos/{repo_name}/readme", headers)
+        if r1.status_code == 200:
             try:
-                content = base64.b64decode(readme_data.get("content", "")).decode("utf-8", errors="replace")
-                readmes[repo["name"]] = content
+                readme_text = _b64.b64decode(
+                    r1.json().get("content", "")
+                ).decode("utf-8", errors="replace")
             except Exception:
                 pass
 
-        # fetching the top-level directory listing
-        # this gives us file names, types (file vs directory), and sizes
-        resp = request_making(
-            f"{BASE_URL}/repos/{repo_name}/contents",
-            headers
-        )
-        if resp.status_code == 200:
-            files = [
+        r2 = request_making(f"{BASE_URL}/repos/{repo_name}/contents", headers)
+        if r2.status_code == 200:
+            file_list = [
                 {"name": f["name"], "type": f["type"], "size": f.get("size", 0)}
-                for f in resp.json()
+                for f in r2.json()
             ]
-            file_listings[repo["name"]] = files
+
+        return repo["name"], readme_text, file_list
+
+    readmes       = {}
+    file_listings = {}
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for name, readme, files in ex.map(fetch_repo_contents, sorted_repos[:max_repos]):
+            if readme:
+                readmes[name]       = readme
+            if files:
+                file_listings[name] = files
 
     with open(Dataset_Path / "readmes.json", "w") as f:
         json.dump(readmes, f, indent=2)
@@ -328,6 +361,11 @@ def main():
     parser.add_argument("--username", required=True, help="Your GitHub username")
     parser.add_argument("--token", default=None, help="GitHub personal access token (optional)")
     args = parser.parse_args()
+
+    # store data in data/{username}/ so multiple users don't overwrite each other
+    global Dataset_Path
+    Dataset_Path = Path("data") / args.username
+    Dataset_Path.mkdir(parents=True, exist_ok=True)
 
     # setting up the headers for all API requests
     # the Accept header tells GitHub we want v3 JSON responses

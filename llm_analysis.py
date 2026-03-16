@@ -118,6 +118,8 @@ class LLMAnalyzer:
         # route to the correct provider based on what was configured
         if self.provider == "ollama":
             result = self._call_ollama(prompt, system_prompt, temperature, max_tokens)
+        elif self.provider == "groq":
+            result = self._call_groq(prompt, system_prompt, temperature, max_tokens)
         elif self.provider == "openai":
             result = self._call_openai(prompt, system_prompt, temperature, max_tokens)
         elif self.provider == "anthropic":
@@ -212,21 +214,16 @@ class LLMAnalyzer:
                 provider="ollama"
             )
 
-    def _call_openai(self, prompt, system_prompt, temperature, max_tokens) -> LLMResult:
+    def _call_openai_compatible(self, prompt, system_prompt, temperature,
+                                max_tokens, base_url, provider_name) -> LLMResult:
         """
-        Call OpenAI's cloud API. NOT USED in this project.
-
-        This method exists as an optional extension. The assignment says:
-        "You may use OpenAI/Claude API for comparison on a small subset"
-        I chose not to use it since the assignment only requires local LLMs.
-
-        If someone wanted to use it, they would create an analyzer like:
-            llm = LLMAnalyzer(provider="openai", model="gpt-4o-mini", api_key="sk-...")
+        Generic OpenAI-compatible chat completions call.
+        Used by both _call_openai and _call_groq — they share the same wire format.
         """
         if not self.api_key:
             return LLMResult(
-                response="ERROR: OpenAI API key not provided.",
-                model=self.model, provider="openai"
+                response=f"ERROR: API key not provided for {provider_name}.",
+                model=self.model, provider=provider_name
             )
 
         headers = {
@@ -247,7 +244,7 @@ class LLMAnalyzer:
 
         try:
             resp = requests.post(
-                "https://api.openai.com/v1/chat/completions",
+                f"{base_url}/chat/completions",
                 headers=headers,
                 json=payload,
                 timeout=60
@@ -256,10 +253,9 @@ class LLMAnalyzer:
             data = resp.json()
 
             usage = data.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", 0)
+            prompt_tokens     = usage.get("prompt_tokens", 0)
             completion_tokens = usage.get("completion_tokens", 0)
 
-            # calculating the dollar cost based on token usage
             pricing = self.PRICING.get(self.model, {"input": 0, "output": 0})
             cost = (prompt_tokens / 1000 * pricing["input"] +
                     completion_tokens / 1000 * pricing["output"])
@@ -267,7 +263,7 @@ class LLMAnalyzer:
             return LLMResult(
                 response=data["choices"][0]["message"]["content"],
                 model=self.model,
-                provider="openai",
+                provider=provider_name,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 cost_usd=round(cost, 6)
@@ -275,8 +271,32 @@ class LLMAnalyzer:
         except Exception as e:
             return LLMResult(
                 response=f"ERROR: {str(e)}",
-                model=self.model, provider="openai"
+                model=self.model, provider=provider_name
             )
+
+    def _call_openai(self, prompt, system_prompt, temperature, max_tokens) -> LLMResult:
+        """Call OpenAI's cloud API (optional extension)."""
+        return self._call_openai_compatible(
+            prompt, system_prompt, temperature, max_tokens,
+            base_url="https://api.openai.com/v1",
+            provider_name="openai"
+        )
+
+    def _call_groq(self, prompt, system_prompt, temperature, max_tokens) -> LLMResult:
+        """
+        Call Groq's cloud API — free tier, OpenAI-compatible, ~300 tok/s.
+        Groq hosts llama-3.1-8b-instant and mixtral-8x7b-32768 among others.
+        Get a free API key at console.groq.com.
+
+        Usage:
+            llm = LLMAnalyzer(provider="groq", model="llama-3.1-8b-instant",
+                              api_key="gsk_...")
+        """
+        return self._call_openai_compatible(
+            prompt, system_prompt, temperature, max_tokens,
+            base_url="https://api.groq.com/openai/v1",
+            provider_name="groq"
+        )
 
     def _call_anthropic(self, prompt, system_prompt, temperature, max_tokens) -> LLMResult:
         """

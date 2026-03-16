@@ -1,30 +1,12 @@
 """
 GitHub Self-Analysis Dashboard
 ================================
-This is the interactive dashboard for the AI-Powered GitHub Self-Analysis project.
-It visualizes all the data collected from my GitHub profile and lets me run
-LLM-powered analyses in real time through a web interface.
-
-I chose Streamlit because it's the fastest way to build data dashboards in Python
-without needing any frontend/HTML knowledge. It converts Python scripts directly
-into interactive web apps.
-
-The dashboard has 5 pages:
-    1. Overview 
-    2. Activity 
-    3. LLM Insights 
-    4. ML Analysis 
-    5. Model Comparison 
+Interactive dashboard for AI-Powered GitHub Self-Analysis.
+5 pages: Overview · Activity · LLM Insights · ML Analysis · Model Comparison
 
 Usage: streamlit run dashboard/app.py
-This opens a local web server at http://localhost:8501
 """
 
-# Imports
-# streamlit is the web framework that renders everything as a dashboard
-# plotly gives us interactive charts (hover, zoom, pan) instead of static matplotlib
-# pandas/numpy handle data manipulation
-# Counter and defaultdict help with aggregating language and word frequency data
 import streamlit as st
 import json, sys
 import pandas as pd
@@ -35,192 +17,542 @@ from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import datetime
 
-# adding the parent directory to the path so we can import our custom LLM module
-# this is needed because the dashboard lives in a subfolder (dashboard/)
-# while llm_analysis.py lives in the project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from llm_analysis import LLMAnalyzer, LLMResult
 
-#  Page Configuration 
-# setting the browser tab title, icon, and using wide layout so charts
-# have more horizontal space to display properly
-st.set_page_config(page_title="GitHub Self-Analysis", layout="wide")
+# ── Page config ────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="GitHub Self-Analysis",
+    page_icon="🔬",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-# pointing to the data directory where collect_data.py saved all the JSON files
-DATA_DIR = Path(__file__).parent.parent / "data"
+# ── Global CSS ─────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* ---------- metric cards ---------- */
+.metric-card {
+    background: linear-gradient(135deg, #1a1f35, #252b45);
+    border-radius: 14px;
+    padding: 1.4rem 1rem;
+    text-align: center;
+    border-top: 3px solid #6e40c9;
+    margin-bottom: 0.5rem;
+}
+.metric-value {
+    font-size: 2.1rem;
+    font-weight: 800;
+    color: #a78bfa;
+    line-height: 1.1;
+}
+.metric-label {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 0.35rem;
+}
+.metric-icon { font-size: 1.5rem; margin-bottom: 0.3rem; }
+
+/* ---------- section headers ---------- */
+.section-head {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid #6e40c9;
+    margin: 1.2rem 0 0.8rem;
+}
+
+/* ---------- info / insight boxes ---------- */
+.insight-box {
+    background: #1a1f35;
+    border-left: 4px solid #6e40c9;
+    border-radius: 0 10px 10px 0;
+    padding: 0.9rem 1.1rem;
+    margin: 0.5rem 0;
+    color: #cbd5e1;
+    font-size: 0.95rem;
+}
+.insight-box b { color: #a78bfa; }
+
+/* ---------- task cards (LLM page) ---------- */
+.task-pill {
+    display: inline-block;
+    background: #252b45;
+    border: 1px solid #3d4568;
+    border-radius: 20px;
+    padding: 0.3rem 0.85rem;
+    margin: 0.25rem;
+    font-size: 0.82rem;
+    color: #a78bfa;
+}
+
+/* ---------- result box ---------- */
+.result-box {
+    background: #161b2e;
+    border: 1px solid #2d3562;
+    border-radius: 12px;
+    padding: 1.4rem 1.6rem;
+    margin-top: 0.8rem;
+    color: #e2e8f0;
+    line-height: 1.7;
+}
+
+/* ---------- cluster chip ---------- */
+.cluster-chip {
+    display: inline-block;
+    background: #252b45;
+    border-radius: 6px;
+    padding: 0.15rem 0.55rem;
+    margin: 0.15rem;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    border: 1px solid #3d4568;
+}
+
+/* ---------- landing hero ---------- */
+.hero-wrap {
+    text-align: center;
+    padding: 2.5rem 1rem 1.5rem;
+}
+.hero-title {
+    font-size: 3rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #6e40c9 0%, #a78bfa 50%, #34d399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.15;
+    margin-bottom: 0.6rem;
+}
+.hero-sub {
+    font-size: 1.1rem;
+    color: #94a3b8;
+    max-width: 580px;
+    margin: 0 auto 1.5rem;
+    line-height: 1.6;
+}
+.chip {
+    display: inline-block;
+    background: #1a1f35;
+    border: 1px solid #3d4568;
+    border-radius: 20px;
+    padding: 0.3rem 0.85rem;
+    margin: 0.2rem;
+    font-size: 0.82rem;
+    color: #a78bfa;
+}
+
+/* ---------- sidebar tweaks ---------- */
+section[data-testid="stSidebar"] {
+    background: #0f1320;
+}
+.sidebar-profile {
+    text-align: center;
+    padding: 0.5rem 0 0.8rem;
+}
+.sidebar-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    padding: 0.15rem 0;
+}
+.sidebar-stat span { color: #a78bfa; font-weight: 600; }
+
+/* ---------- page title ---------- */
+.page-title {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    margin-bottom: 0.2rem;
+}
+.page-sub {
+    font-size: 0.95rem;
+    color: #64748b;
+    margin-bottom: 1.2rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Plotly theme ───────────────────────────────────────────────────────────────
+PLOT_LAYOUT = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(color="#cbd5e1", family="Inter, sans-serif"),
+    margin=dict(l=10, r=10, t=40, b=10),
+    xaxis=dict(gridcolor="#1e2535", zerolinecolor="#1e2535"),
+    yaxis=dict(gridcolor="#1e2535", zerolinecolor="#1e2535"),
+)
+COLORS = px.colors.qualitative.Vivid
 
 
-#  Data Loading Functions 
-# using @st.cache_data so the JSON files are only read once from disk
-# even if the user refreshes the page or switches between tabs
-# without this, every page navigation would re-read all 7 files
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def metric_card(icon, label, value, color="#a78bfa"):
+    st.markdown(f"""
+    <div class="metric-card" style="border-top-color:{color}">
+        <div class="metric-icon">{icon}</div>
+        <div class="metric-value" style="color:{color}">{value}</div>
+        <div class="metric-label">{label}</div>
+    </div>""", unsafe_allow_html=True)
+
+
+def section(title):
+    st.markdown(f'<div class="section-head">{title}</div>', unsafe_allow_html=True)
+
+
+def insight(text):
+    st.markdown(f'<div class="insight-box">{text}</div>', unsafe_allow_html=True)
+
+
+def apply_theme(fig, height=400):
+    fig.update_layout(**PLOT_LAYOUT, height=height)
+    return fig
+
+
+# ── Username gate ──────────────────────────────────────────────────────────────
+if "username" not in st.session_state:
+    st.markdown("""
+    <div class="hero-wrap">
+        <div class="hero-title">GitHub Self-Analysis</div>
+        <div class="hero-sub">
+            Drop any public GitHub username and get an AI-powered breakdown
+            of their coding profile — skill clusters, commit patterns, career
+            narrative, and live LLM insights.
+        </div>
+        <div>
+            <span class="chip">🤖 Local LLMs (Ollama)</span>
+            <span class="chip">📊 9 Visualizations</span>
+            <span class="chip">🧠 7 AI Analysis Tasks</span>
+            <span class="chip">⚡ K-Means Clustering</span>
+            <span class="chip">📈 6-Month Forecast</span>
+            <span class="chip">💰 $0 Cloud Cost</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        st.markdown("#### Enter a GitHub Username")
+        username_input = st.text_input(
+            "GitHub Username", placeholder="e.g. torvalds, gvanrossum, Khushipatel27",
+            label_visibility="collapsed"
+        )
+        token_input = st.text_input(
+            "GitHub Token *(optional — raises rate limit from 60 → 5,000 req/hr)*",
+            type="password",
+            help="Generate at github.com/settings/tokens — no special scopes needed for public repos.",
+            placeholder="ghp_xxxxxxxxxxxx  (optional)",
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 Analyze Profile", type="primary", width='stretch'):
+            if username_input.strip():
+                st.session_state.username = username_input.strip()
+                st.session_state.token = token_input.strip() or None
+                st.rerun()
+            else:
+                st.error("Please enter a GitHub username.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style="text-align:center; color:#475569; font-size:0.82rem">
+            ⚠️ Requires <a href="https://ollama.ai" style="color:#a78bfa">Ollama</a> running locally for LLM pages
+            &nbsp;·&nbsp; All analysis runs on your machine
+        </div>
+        """, unsafe_allow_html=True)
+    st.stop()
+
+
+username = st.session_state.username
+DATA_DIR = Path(__file__).parent.parent / "data" / username
+
+# ── Data collection ────────────────────────────────────────────────────────────
+if not (DATA_DIR / "profile.json").exists():
+    import collect_data as cd
+    cd.Dataset_Path = DATA_DIR
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    # priority: 1) token from landing page input, 2) GITHUB_TOKEN secret, 3) unauthenticated
+    _gh_token = (st.session_state.get("token")
+                 or st.secrets.get("GITHUB_TOKEN", "")
+                 if hasattr(st, "secrets") else st.session_state.get("token"))
+    if _gh_token:
+        headers["Authorization"] = f"token {_gh_token}"
+
+    # warn if the token looks like it was never replaced
+    if _gh_token and _gh_token in ("paste_your_github_token_here", "ghp_your_token_here", ""):
+        st.warning("⚠️ GitHub token in secrets.toml looks like a placeholder. "
+                   "Collection will run without a token (60 req/hr limit).")
+        _gh_token = None
+        headers.pop("Authorization", None)
+
+    profile_check = None
+    with st.status(f"Collecting GitHub data for @{username}…", expanded=True) as status:
+        st.write("📡 Fetching profile…")
+        profile_check = cd.collecting_profile_user(username, headers)
+        if not profile_check:
+            del st.session_state["username"]
+            if "token" in st.session_state:
+                del st.session_state["token"]
+            status.update(label="User not found.", state="error")
+        else:
+            st.write("📦 Fetching repositories…")
+            repos_raw = cd.collecting_repos(username, headers)
+            st.write("💬 Fetching commits…")
+            cd.collecting_commits(username, repos_raw, headers)
+            st.write("🔤 Fetching language breakdown…")
+            cd.collecting_languages(repos_raw, headers)
+            st.write("📋 Fetching events & READMEs…")
+            cd.collecting_events(username, headers)
+            cd.collect_repo_contents(repos_raw, headers)
+            status.update(label="Data collected!", state="complete")
+
+    if not profile_check:
+        st.error(f"**@{username}** not found on GitHub. Check the spelling and try again.")
+        if st.button("← Search again", type="primary"):
+            st.rerun()
+        st.stop()
+
+    st.rerun()
+
+
+# ── Load & parse data ──────────────────────────────────────────────────────────
 @st.cache_data
-def load_data():
-    """Load all 7 JSON files that collect_data.py generated."""
+def load_data(data_dir: str):
     data = {}
     for fname in ["profile","repos","commits","languages","events","readmes","file_listings"]:
-        fpath = DATA_DIR / f"{fname}.json"
+        fpath = Path(data_dir) / f"{fname}.json"
         if fpath.exists():
             with open(fpath) as f:
                 data[fname] = json.load(f)
         else:
-            # if a file is missing, use empty list or dict as fallback
-            # so the dashboard doesn't crash, it just shows empty sections
             data[fname] = [] if fname in ["repos","commits","events"] else {}
     return data
 
 
 def parse_repos(raw):
-    """
-    Converting the raw repos JSON into a pandas DataFrame.
-    Each repo becomes a row with columns like name, language, stars, etc.
-    This makes it easy to filter, sort, and visualize the data.
-    """
-    if not raw: return pd.DataFrame()
+    if not raw:
+        return pd.DataFrame(columns=["name","description","language","stars","forks",
+                                     "size_kb","created_at","updated_at","pushed_at",
+                                     "open_issues","is_fork","topics","url"])
     return pd.DataFrame([{
         "name": r["name"],
-        "description": r.get("description",""),
-        "language": r.get("language","Unknown"),
-        "stars": r.get("stargazers_count",0),
-        "forks": r.get("forks_count",0),
-        "size_kb": r.get("size",0),
+        "description": r.get("description", ""),
+        "language": r.get("language", "Unknown"),
+        "stars": r.get("stargazers_count", 0),
+        "forks": r.get("forks_count", 0),
+        "size_kb": r.get("size", 0),
         "created_at": pd.to_datetime(r["created_at"]),
         "updated_at": pd.to_datetime(r["updated_at"]),
         "pushed_at": pd.to_datetime(r.get("pushed_at")),
-        "open_issues": r.get("open_issues_count",0),
-        "is_fork": r.get("fork",False),
-        "topics": r.get("topics",[]),
+        "open_issues": r.get("open_issues_count", 0),
+        "is_fork": r.get("fork", False),
+        "topics": r.get("topics", []),
+        "url": r.get("html_url", ""),
     } for r in raw])
 
 
 def parse_commits(raw):
-    """
-    Convert raw commits JSON into a DataFrame.
-    Extracts the commit message, date, repo name, and short SHA hash.
-    The date is parsed into a proper datetime so we can do time-based analysis.
-    """
-    if not raw: return pd.DataFrame()
+    if not raw:
+        return pd.DataFrame(columns=["sha","repo","message","date"])
     rows = []
     for c in raw:
-        ci = c.get("commit",{})
-        ai = ci.get("author",{})
+        ci = c.get("commit", {})
+        ai = ci.get("author", {})
         rows.append({
-            "sha": c.get("sha","")[:8],
-            "repo": c.get("_repo",""),
-            "message": ci.get("message",""),
-            "date": pd.to_datetime(ai.get("date"))
+            "sha": c.get("sha", "")[:8],
+            "repo": c.get("_repo", ""),
+            "message": ci.get("message", ""),
+            "date": pd.to_datetime(ai.get("date")),
         })
     return pd.DataFrame(rows)
 
 
-#  Load and Parse All Data 
-# this runs once when the dashboard starts up
-data = load_data()
-repos_df = parse_repos(data["repos"])
-commits_df = parse_commits(data["commits"])
-profile = data.get("profile",{})
-languages_data = data.get("languages",{})
-readmes = data.get("readmes",{})
+data        = load_data(str(DATA_DIR))
+repos_df    = parse_repos(data["repos"])
+commits_df  = parse_commits(data["commits"])
+profile     = data.get("profile", {})
+languages_data = data.get("languages", {})
+readmes     = data.get("readmes", {})
 
 
-#  Sidebar 
-# the sidebar stays visible on every page and shows my profile info
-# plus the LLM configuration settings
-st.sidebar.title("GitHub Self-Analysis")
+# ── Sidebar ────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## 🔬 GitHub Analysis")
 
-# show my GitHub avatar and basic profile info at the top
-if profile:
-    st.sidebar.image(profile.get("avatar_url",""), width=100)
-    st.sidebar.markdown(f"### {profile.get('name', profile.get('login','User'))}")
-    if profile.get("bio"):
-        st.sidebar.markdown(f"*{profile['bio']}*")
+    if profile:
+        avatar = profile.get("avatar_url", "")
+        name   = profile.get("name") or profile.get("login", username)
+        bio    = profile.get("bio", "")
+        joined = profile.get("created_at", "")[:4]
 
-st.sidebar.markdown("---")
+        st.markdown(f"""
+        <div class="sidebar-profile">
+            <img src="{avatar}" width="90"
+                 style="border-radius:50%; border:3px solid #6e40c9; margin-bottom:0.5rem">
+            <div style="font-weight:700; font-size:1rem; color:#e2e8f0">{name}</div>
+            <div style="font-size:0.8rem; color:#6e40c9">@{username}</div>
+            {"<div style='font-size:0.8rem;color:#94a3b8;margin-top:0.3rem'>" + bio + "</div>" if bio else ""}
+        </div>
+        <div class="sidebar-stat"><div>Member since</div><span>{joined}</span></div>
+        <div class="sidebar-stat"><div>Public repos</div><span>{profile.get("public_repos",0)}</span></div>
+        <div class="sidebar-stat"><div>Followers</div><span>{profile.get("followers",0)}</span></div>
+        <div class="sidebar-stat"><div>Following</div><span>{profile.get("following",0)}</span></div>
+        """, unsafe_allow_html=True)
 
-# LLM settings - the user can change the Ollama URL if it's running
-# on a different port, and select which two models to use
-# i kept only llama3.1 and mistral since those are the two i pulled
-st.sidebar.markdown("### LLM Settings")
-ollama_url = st.sidebar.text_input("Ollama URL", "http://localhost:11434")
-model_a = st.sidebar.selectbox("Model A", ["llama3.1","mistral"])
-model_b = st.sidebar.selectbox("Model B", ["mistral","llama3.1"])
+    st.markdown("---")
 
-# navigation radio buttons to switch between the 5 dashboard pages
-page = st.sidebar.radio("Navigate", [
-    "Overview", "Activity", "LLM Insights", "ML Analysis", "Model Comparison"
-])
+    st.markdown("#### ⚙️ LLM Settings")
+
+    # auto-detect Groq key from Streamlit secrets (set in the cloud dashboard)
+    # falls back to empty string so the user can paste it manually
+    _groq_secret = st.secrets.get("GROQ_API_KEY", "") if hasattr(st, "secrets") else ""
+
+    provider = st.radio("Provider", ["Ollama (local)", "Groq (cloud — free)"],
+                        help="Groq works on Streamlit Cloud. Ollama requires a local install.")
+
+    if provider == "Ollama (local)":
+        llm_provider  = "ollama"
+        ollama_url    = st.text_input("Ollama URL", "http://localhost:11434")
+        groq_api_key  = ""
+        model_a = st.selectbox("Model A", ["llama3.1", "mistral"], index=0)
+        model_b = st.selectbox("Model B", ["mistral", "llama3.1"], index=0)
+    else:
+        llm_provider = "groq"
+        ollama_url   = ""
+        if _groq_secret:
+            # key is already loaded from secrets — never render it in the UI
+            groq_api_key = _groq_secret
+            st.caption("✅ Groq API key loaded from secrets")
+        else:
+            groq_api_key = st.text_input(
+                "Groq API Key", type="password", placeholder="gsk_...",
+                help="Free key at console.groq.com — no credit card needed"
+            )
+        GROQ_MODELS = ["llama-3.1-8b-instant", "mixtral-8x7b-32768",
+                       "llama-3.3-70b-versatile", "gemma2-9b-it"]
+        model_a = st.selectbox("Model A", GROQ_MODELS, index=0)
+        model_b = st.selectbox("Model B", GROQ_MODELS, index=1)
+
+    st.markdown("---")
+
+    page = st.radio("Navigate", [
+        "🏠 Overview", "📅 Activity", "🤖 LLM Insights",
+        "🧠 ML Analysis", "⚖️ Model Comparison"
+    ])
+
+    st.markdown("---")
+    if st.button("🔄 Refresh Data", width='stretch',
+                 help="Re-collect from GitHub (clears cached data for this user)"):
+        import shutil
+        if DATA_DIR.exists():
+            shutil.rmtree(DATA_DIR)
+        load_data.clear()
+        st.rerun()
+
+    if st.button("← Different User", width='stretch'):
+        del st.session_state["username"]
+        if "token" in st.session_state:
+            del st.session_state["token"]
+        load_data.clear()
+        st.rerun()
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 1 · OVERVIEW
+# ══════════════════════════════════════════════════════════════════════════════
+if page == "🏠 Overview":
+    st.markdown(f'<div class="page-title">@{username}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">GitHub profile at a glance</div>', unsafe_allow_html=True)
 
-# PAGE 1: OVERVIEW
-# Shows high-level metrics and language breakdown.
-# This gives a quick snapshot of my entire GitHub presence.
-
-if page == "Overview":
-    st.title("GitHub Profile Overview")
-
-    # if there's no data, show an error and stop rendering the rest of the page
     if repos_df.empty:
-        st.error("No data found. Run `python collect_data.py --username YOUR_USERNAME` first.")
+        st.error(f"No public repositories found for @{username}.")
         st.stop()
 
-    # four metric cards across the top showing the key numbers
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Repositories", len(repos_df))
-    c2.metric("Total Commits", len(commits_df))
-    c3.metric("Total Stars", int(repos_df["stars"].sum()))
-    c4.metric("Languages", repos_df["language"].nunique())
+    # ── metric cards ──
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1: metric_card("📁", "Repositories",  len(repos_df),             "#a78bfa")
+    with c2: metric_card("💬", "Commits",        len(commits_df),           "#34d399")
+    with c3: metric_card("⭐", "Total Stars",    int(repos_df["stars"].sum()), "#fbbf24")
+    with c4: metric_card("🍴", "Total Forks",    int(repos_df["forks"].sum()), "#60a5fa")
+    with c5: metric_card("🔤", "Languages",      repos_df["language"].nunique(), "#f472b6")
 
-    # two charts side by side: language by repo count and language by code volume
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── language charts ──
+    section("Language Breakdown")
     left, right = st.columns(2)
 
     with left:
-        # horizontal bar chart showing which languages i use most often
-        # this counts how many repos use each language
-        st.subheader("Languages by Repo Count")
-        lc = repos_df["language"].value_counts().head(10)
+        lc  = repos_df["language"].value_counts().head(10)
         fig = px.bar(x=lc.values, y=lc.index, orientation="h",
-                     color=lc.values, color_continuous_scale="viridis")
-        fig.update_layout(showlegend=False, yaxis_title="", xaxis_title="Repos",
-                         coloraxis_showscale=False, height=400)
-        st.plotly_chart(fig, use_container_width=True)
+                     color=lc.index, color_discrete_sequence=COLORS)
+        fig.update_layout(**PLOT_LAYOUT, height=350,
+                          showlegend=False,
+                          xaxis_title="Repositories", yaxis_title="")
+        fig.update_traces(marker_line_width=0)
+        st.markdown("**By Repo Count**")
+        st.plotly_chart(fig, width='stretch')
 
     with right:
-        # pie chart showing total bytes of code written in each language
-        # this gives a different perspective - a repo might be listed as Python
-        # but actually have more HTML/CSS by volume
-        st.subheader("Languages by Code Volume")
         tb = defaultdict(int)
         for rl in languages_data.values():
             for lang, b in rl.items():
                 tb[lang] += b
-        lb = pd.Series(tb).sort_values(ascending=False).head(10)
-        fig = px.pie(names=lb.index, values=lb.values, hole=0.4)
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        lb = pd.Series(tb).sort_values(ascending=False).head(8)
+        if not lb.empty:
+            fig = px.pie(names=lb.index, values=lb.values, hole=0.5,
+                         color_discrete_sequence=COLORS)
+            fig.update_traces(textposition="inside", textinfo="percent+label",
+                              marker=dict(line=dict(color="#0f1320", width=2)))
+            fig.update_layout(**PLOT_LAYOUT, height=350, showlegend=True,
+                              legend=dict(orientation="v", x=1.05))
+            st.markdown("**By Code Volume (bytes)**")
+            st.plotly_chart(fig, width='stretch')
 
-    # sortable table of all repos so i can browse them
-    st.subheader("Repository Details")
-    display_cols = ["name","language","stars","forks","size_kb","created_at"]
-    st.dataframe(repos_df[display_cols].sort_values("stars", ascending=False), use_container_width=True)
+    # ── repo table ──
+    section("All Repositories")
+    display = repos_df[["name","language","stars","forks","size_kb","created_at","description"]].copy()
+    display["created_at"] = display["created_at"].dt.strftime("%Y-%m-%d")
+    display = display.sort_values("stars", ascending=False).reset_index(drop=True)
+    st.dataframe(
+        display,
+        width='stretch',
+        column_config={
+            "name":        st.column_config.TextColumn("Repository"),
+            "language":    st.column_config.TextColumn("Language"),
+            "stars":       st.column_config.NumberColumn("⭐ Stars"),
+            "forks":       st.column_config.NumberColumn("🍴 Forks"),
+            "size_kb":     st.column_config.NumberColumn("Size (KB)"),
+            "created_at":  st.column_config.TextColumn("Created"),
+            "description": st.column_config.TextColumn("Description"),
+        },
+        hide_index=True,
+    )
 
 
-
-# PAGE 2: ACTIVITY
-# Shows temporal patterns in my coding - when i code, how often,
-# and how my commit messages look. This is all traditional data
-# science (no LLM needed).
-
-elif page == "Activity":
-    st.title("Activity Timeline")
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 2 · ACTIVITY
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "📅 Activity":
+    st.markdown('<div class="page-title">Activity Timeline</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Coding patterns, schedule, and commit behaviour</div>',
+                unsafe_allow_html=True)
 
     if commits_df.empty:
-        st.warning("No commit data available.")
+        st.warning(
+            f"No commits found for **@{username}**. "
+            "This can happen if the account uses a different email than their GitHub login, "
+            "or if all activity is in private/organization repos."
+        )
         st.stop()
 
-    #  Monthly Commit Activity 
-    # grouping commits by month to see the overall trend
-    # using plotly Scatter with fill to create an area chart
+    # ── monthly timeline ──
+    section("Monthly Commit Activity")
     commits_df["month"] = commits_df["date"].dt.to_period("M")
     monthly = commits_df.groupby("month").size().reset_index(name="commits")
     monthly["month"] = monthly["month"].dt.to_timestamp()
@@ -229,157 +561,187 @@ elif page == "Activity":
     fig.add_trace(go.Scatter(
         x=monthly["month"], y=monthly["commits"],
         mode="lines+markers", fill="tozeroy",
-        name="Commits", line=dict(color="#2ecc71")
+        name="Commits",
+        line=dict(color="#6e40c9", width=2.5),
+        fillcolor="rgba(110,64,201,0.15)",
+        marker=dict(size=7, color="#a78bfa"),
     ))
-    fig.update_layout(title="Monthly Commit Activity", xaxis_title="", yaxis_title="Commits", height=400)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(**PLOT_LAYOUT, height=320, yaxis_title="Commits", xaxis_title="")
+    st.plotly_chart(fig, width='stretch')
 
-    #  Coding Schedule Heatmap 
-    # this shows what day and hour i typically commit code
-    # rows are days of the week, columns are hours (0-23)
-    # darker colors mean more commits at that time slot
-    st.subheader("Coding Schedule Heatmap")
-    commits_df["dow"] = commits_df["date"].dt.day_name()
-    commits_df["hour"] = commits_df["date"].dt.hour
-    day_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    hm = commits_df.groupby(["dow","hour"]).size().unstack(fill_value=0).reindex(day_order)
+    peak_month = monthly.loc[monthly["commits"].idxmax(), "month"].strftime("%B %Y") if not monthly.empty else "N/A"
+    insight(f"<b>Peak month:</b> {peak_month} — {int(monthly['commits'].max())} commits")
 
-    fig = px.imshow(hm, color_continuous_scale="YlOrRd", aspect="auto",
-                    labels=dict(x="Hour", y="Day", color="Commits"))
-    fig.update_layout(title="When Do You Code?", height=350)
-    st.plotly_chart(fig, use_container_width=True)
+    # ── heatmap + growth side by side ──
+    col_left, col_right = st.columns(2)
 
-    #  Repository Growth 
-    # a cumulative line chart showing how many total repos i had over time
-    # this shows whether i'm creating repos at an increasing or decreasing rate
-    st.subheader("Repository Growth")
-    rds = repos_df.sort_values("created_at").copy()
-    rds["cumulative"] = range(1, len(rds)+1)
-    fig = px.line(rds, x="created_at", y="cumulative", markers=True)
-    fig.update_layout(xaxis_title="", yaxis_title="Total Repos", height=350)
-    st.plotly_chart(fig, use_container_width=True)
+    with col_left:
+        section("Coding Schedule")
+        commits_df["dow"]  = commits_df["date"].dt.day_name()
+        commits_df["hour"] = commits_df["date"].dt.hour
+        day_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+        hm = commits_df.groupby(["dow","hour"]).size().unstack(fill_value=0).reindex(day_order)
+        fig = px.imshow(hm, color_continuous_scale="Purples", aspect="auto",
+                        labels=dict(x="Hour of Day", y="", color="Commits"))
+        fig.update_layout(**PLOT_LAYOUT, height=300,
+                          coloraxis_colorbar=dict(thickness=12, len=0.8))
+        st.plotly_chart(fig, width='stretch')
 
-    #  Commit Message Analytics 
-    # two charts: message length distribution and most common words
-    # this helps understand my commit writing habits
-    st.subheader("Commit Message Analytics")
+        busiest_day  = commits_df["dow"].value_counts().idxmax()  if not commits_df.empty else "N/A"
+        busiest_hour = int(commits_df["hour"].value_counts().idxmax()) if not commits_df.empty else 0
+        insight(f"<b>Most active:</b> {busiest_day}s around {busiest_hour:02d}:00")
+
+    with col_right:
+        section("Repository Growth")
+        rds = repos_df.sort_values("created_at").copy()
+        rds["cumulative"] = range(1, len(rds)+1)
+        fig = px.area(rds, x="created_at", y="cumulative",
+                      markers=True, color_discrete_sequence=["#34d399"])
+        fig.update_traces(fillcolor="rgba(52,211,153,0.12)", line=dict(width=2.5))
+        fig.update_layout(**PLOT_LAYOUT, height=300,
+                          xaxis_title="", yaxis_title="Total Repos")
+        st.plotly_chart(fig, width='stretch')
+
+    # ── commit message analytics ──
+    section("Commit Message Analytics")
     msg_lens = commits_df["message"].str.split("\n").str[0].str.len()
     col1, col2 = st.columns(2)
 
     with col1:
-        # histogram of how long my commit messages are (first line only)
-        fig = px.histogram(msg_lens, nbins=30, title="Message Length Distribution")
-        fig.update_layout(xaxis_title="Characters", yaxis_title="Count", showlegend=False, height=300)
-        st.plotly_chart(fig, use_container_width=True)
+        fig = px.histogram(msg_lens, nbins=25, color_discrete_sequence=["#6e40c9"])
+        fig.update_layout(**PLOT_LAYOUT, height=280,
+                          xaxis_title="Characters (first line)", yaxis_title="Count",
+                          showlegend=False, title="Message Length Distribution")
+        fig.update_traces(marker_line_width=0)
+        st.plotly_chart(fig, width='stretch')
 
     with col2:
-        # bar chart of most frequently used words in commit messages
-        # filtering out common english stop words so we see meaningful terms
         stop = {"the","a","an","and","or","in","on","at","to","for","of","is","it",
-                "this","that","with","from","by","as"}
+                "this","that","with","from","by","as","update","add","fix","remove"}
         words = []
         for msg in commits_df["message"]:
             fl = msg.split("\n")[0].lower()
-            words.extend([w.strip(".,!?()[]{}:") for w in fl.split() if len(w) > 2 and w not in stop])
+            words.extend([w.strip(".,!?()[]{}:") for w in fl.split()
+                          if len(w) > 2 and w not in stop])
         wf = Counter(words).most_common(12)
         if wf:
             wdf = pd.DataFrame(wf, columns=["word","count"])
-            fig = px.bar(wdf, x="count", y="word", orientation="h", title="Top Commit Words")
-            fig.update_layout(yaxis_title="", height=300)
-            st.plotly_chart(fig, use_container_width=True)
+            fig = px.bar(wdf, x="count", y="word", orientation="h",
+                         color="count", color_continuous_scale="Purples",
+                         title="Top Commit Keywords")
+            fig.update_layout(**PLOT_LAYOUT, height=280,
+                              yaxis_title="", coloraxis_showscale=False)
+            fig.update_traces(marker_line_width=0)
+            st.plotly_chart(fig, width='stretch')
+
+    avg_len = int(msg_lens.mean()) if not msg_lens.empty else 0
+    insight(f"<b>Avg commit message length:</b> {avg_len} characters &nbsp;·&nbsp; "
+            f"<b>Total commits analysed:</b> {len(commits_df)}")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 3 · LLM INSIGHTS
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🤖 LLM Insights":
+    st.markdown('<div class="page-title">LLM-Powered Insights</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="page-sub">Analysing @{username} with <b>{model_a}</b> via {llm_provider.capitalize()}</div>',
+                unsafe_allow_html=True)
 
-# PAGE 3: LLM INSIGHTS
-# This is where the local LLM integration happens. The user picks
-# one of 7 analysis tasks from a dropdown, clicks "Run Analysis",
-# and the prompt is sent to Ollama in real time. The response and
-# performance metrics are displayed on the page.
+    TASKS = {
+        "🧬 Sentiment Analysis":      ("Developer psychology expert",   "4-class sentiment breakdown of commits"),
+        "🗂️ Topic Clustering":         ("Technical recruiter",           "Thematic groups + portfolio gaps"),
+        "🛠️ Skill Extraction":         ("Senior tech lead",              "Proficiency tiers by domain"),
+        "📝 Documentation Quality":    ("Developer experience expert",   "1–10 ratings across 4 dimensions"),
+        "🏷️ Naming Conventions":       ("Code quality consultant",       "Issues + recommendations"),
+        "🗺️ Career Narrative":         ("Tech career counselor",         "Timeline, pivots, interview strengths"),
+        "💡 Next Project Ideas":       ("Tech mentor",                   "3 skill-builders · 2 stretch · 1 booster"),
+    }
 
-# I used this approach instead of pre-computed results so that
-# the dashboard is interactive and the grader can see the LLM
-# working live during the demo video.
+    # task cards legend
+    st.markdown('<div class="section-head">Choose an Analysis Task</div>', unsafe_allow_html=True)
+    pills_html = "".join(
+        f'<span class="task-pill">{t} — <span style="color:#64748b">{d}</span></span>'
+        for t, (_, d) in TASKS.items()
+    )
+    st.markdown(f'<div style="margin-bottom:0.8rem">{pills_html}</div>', unsafe_allow_html=True)
 
-elif page == "LLM Insights":
-    st.title("LLM-Powered Insights")
-    st.info(f"Using **{model_a}** via Ollama at `{ollama_url}`")
+    if commits_df.empty:
+        st.info(
+            "⚠️ No commit data found for this user — **Sentiment Analysis** is unavailable. "
+            "All other 6 tasks work fine. "
+            "Hit **🔄 Refresh Data** in the sidebar if you think commits exist."
+        )
 
-    # creating the LLM analyzer instance with the selected model
-    # this connects to Ollama running locally
-    llm = LLMAnalyzer(provider="ollama", model=model_a, ollama_url=ollama_url)
+    task = st.selectbox("Select task", list(TASKS.keys()), label_visibility="collapsed")
+    persona, task_desc = TASKS[task]
+    st.caption(f"**Persona:** {persona}  ·  **Output:** {task_desc}")
 
-    # dropdown to pick which analysis task to run
-    task = st.selectbox("Select Analysis", [
-        "Sentiment Analysis", "Topic Clustering", "Skill Extraction",
-        "Documentation Quality", "Naming Conventions", "Career Narrative", "Next Project Ideas"
-    ])
+    llm = LLMAnalyzer(provider=llm_provider, model=model_a,
+                      ollama_url=ollama_url, api_key=groq_api_key or None)
 
-    if st.button("Run Analysis", type="primary"):
-        # building the appropriate prompt based on which task was selected
-        # each task injects real data from my GitHub profile into the prompt
-        with st.spinner(f"Running {task} with {model_a}..."):
+    if st.button(f"▶ Run  {task}", type="primary"):
+        # tasks that need commits — show a clear error instead of crashing
+        needs_commits = "Sentiment" in task
+        if needs_commits and commits_df.empty:
+            st.warning(
+                f"⚠️ No commits found for **@{username}**. "
+                "Sentiment Analysis requires commit history. "
+                "Try Topic Clustering, Skill Extraction, or Career Narrative instead."
+            )
+            st.stop()
 
-            if task == "Sentiment Analysis":
-                # sending my commit messages to the LLM to classify their tone
+        with st.spinner(f"Sending to {model_a}…"):
+
+            if "Sentiment" in task:
                 sample = commits_df["message"].str.split("\n").str[0].head(40).tolist()
-                prompt = f"Analyze sentiment of these commit messages:\n" + "\n".join(f"{i+1}. {m}" for i,m in enumerate(sample))
+                prompt = "Analyze sentiment of these commit messages:\n" + \
+                         "\n".join(f"{i+1}. {m}" for i,m in enumerate(sample))
                 prompt += "\n\nGive: 1) sentiment breakdown %, 2) patterns, 3) developer personality"
-                sys_p = "You are a developer psychology expert."
 
-            elif task == "Topic Clustering":
-                # sending repo names and descriptions for the LLM to group into themes
-                rs = [f"- {r['name']}: {r.get('description','')} ({r.get('language','')})" for r in data["repos"][:25]]
-                prompt = f"Group these repos into thematic clusters:\n" + "\n".join(rs)
+            elif "Topic" in task:
+                rs = [f"- {r['name']}: {r.get('description','')} ({r.get('language','')})"
+                      for r in data["repos"][:25]]
+                prompt = "Group these repos into thematic clusters:\n" + "\n".join(rs)
                 prompt += "\n\nGive: clusters with repo lists, expertise areas, gaps"
-                sys_p = "You are a technical recruiter."
 
-            elif task == "Skill Extraction":
-                # sending language data and repo names to build a skill profile
+            elif "Skill" in task:
                 prompt = f"Extract skills from this GitHub data:\nLanguages: {json.dumps(dict(list(languages_data.items())[:15]))}"
-                prompt += f"\nRepos: " + ", ".join(r["name"] for r in data["repos"][:20])
+                prompt += "\nRepos: " + ", ".join(r["name"] for r in data["repos"][:20])
                 prompt += "\n\nGive: skills with proficiency levels, domain knowledge, next skills to learn"
-                sys_p = "You are a senior tech lead."
 
-            elif task == "Documentation Quality":
-                # sending README content for quality evaluation
+            elif "Documentation" in task:
                 samples = {n: c[:800] for n, c in list(readmes.items())[:4]}
                 prompt = f"Evaluate README quality:\n{json.dumps(samples, indent=2)}"
                 prompt += "\n\nRate each 1-10 on clarity, setup, examples, completeness."
-                sys_p = "You are a developer experience expert."
 
-            elif task == "Naming Conventions":
-                # sending repo names for the LLM to analyze naming patterns
+            elif "Naming" in task:
                 prompt = f"Analyze naming conventions:\nRepo names: {json.dumps([r['name'] for r in data['repos'][:25]])}"
                 prompt += "\n\nAnalyze: conventions, consistency, descriptiveness, improvements."
-                sys_p = "You are a code quality consultant."
 
-            elif task == "Career Narrative":
-                # sending the chronological timeline of repo creation
-                # so the LLM can write a narrative of my technical journey
+            elif "Career" in task:
                 timeline = [{"date": r.get("created_at","")[:7], "name": r["name"], "lang": r.get("language","")}
-                           for r in sorted(data["repos"], key=lambda x: x.get("created_at",""))][:30]
+                            for r in sorted(data["repos"], key=lambda x: x.get("created_at",""))][:30]
                 prompt = f"Write a career narrative from this timeline:\n{json.dumps(timeline, indent=2)}"
                 prompt += "\n\nGive: journey phases, pivots, predicted next move, interview strengths"
-                sys_p = "You are a tech career counselor."
 
             else:
-                # next project ideas - sending current skills and recent work
-                # so the LLM can suggest what to build next
                 prompt = f"Suggest next projects based on:\nSkills: {[r.get('language','') for r in data['repos'][:15]]}"
                 prompt += f"\nRecent: {[r['name'] for r in data['repos'][:8]]}"
                 prompt += "\n\nSuggest: 3 skill-building, 2 stretch, 1 portfolio-booster"
-                sys_p = "You are a tech mentor."
 
-            # send the prompt to Ollama and get the response
-            result = llm.analyze(prompt, sys_p)
+            result = llm.analyze(prompt, f"You are a {persona.lower()}.")
 
-        # display the result
-        st.success(f"Completed in {result.latency_seconds}s | {result.completion_tokens} tokens")
-        st.markdown(result.response)
+        # ── result display ──
+        m1, m2, m3 = st.columns(3)
+        m1.metric("⏱ Latency", f"{result.latency_seconds:.1f}s")
+        m2.metric("🔢 Tokens", result.completion_tokens)
+        m3.metric("⚡ Throughput",
+                  f"{result.completion_tokens/max(result.latency_seconds,0.1):.0f} tok/s")
 
-        # expandable section showing detailed performance numbers
-        # useful for the model comparison part of the assignment
-        with st.expander("Performance Metrics"):
+        st.markdown(f'<div class="result-box">{result.response.replace(chr(10), "<br>")}</div>',
+                    unsafe_allow_html=True)
+
+        with st.expander("Raw performance metrics"):
             st.json({
                 "model": result.model,
                 "latency_seconds": result.latency_seconds,
@@ -390,163 +752,195 @@ elif page == "LLM Insights":
             })
 
 
-
-# PAGE 4: ML ANALYSIS
-# Traditional machine learning applied to my GitHub data.
-# The assignment requires at least 2 ML techniques, so i implemented:
-#   1. K-Means clustering to group similar repos together
-#   2. Linear regression to forecast future commit activity
-
-elif page == "ML Analysis":
-    st.title("Machine Learning Analysis")
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 4 · ML ANALYSIS
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🧠 ML Analysis":
+    st.markdown('<div class="page-title">Machine Learning Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">K-Means clustering · TF-IDF · PCA · Linear regression forecasting</div>',
+                unsafe_allow_html=True)
 
     if repos_df.empty:
-        st.warning("No data available.")
+        st.warning("No repository data available.")
         st.stop()
 
-    #  ML Technique 1: K-Means Clustering 
-    # this groups my repos based on similarity using both text features
-    # (TF-IDF of repo name + description) and numeric features (stars, forks, size)
-    # PCA reduces the high-dimensional feature space to 2D for visualization
-    st.subheader("Repository Clustering (K-Means)")
     from sklearn.cluster import KMeans
     from sklearn.preprocessing import StandardScaler
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.decomposition import PCA
+    from sklearn.linear_model import LinearRegression
 
-    if len(repos_df) >= 5:
-        # interactive slider so the user can adjust the number of clusters
-        k = st.slider("Number of clusters", 2, min(8, len(repos_df)-1), 4)
+    # ── K-Means ──
+    section("Repository Clustering (K-Means + TF-IDF + PCA)")
+    insight("Repos are represented as vectors combining <b>TF-IDF text features</b> "
+            "(name + description) and <b>scaled numeric features</b> (stars, forks, size). "
+            "PCA reduces to 2D for visualization.")
 
-        # building the feature matrix:
-        # text features from repo name + description using TF-IDF
-        text = (repos_df["name"].fillna("") + " " + repos_df["description"].fillna("")).tolist()
-        tfidf = TfidfVectorizer(max_features=20, stop_words="english")
-        tf = tfidf.fit_transform(text).toarray()
+    if len(repos_df) >= 4:
+        k = st.slider("Number of clusters (k)", 2, min(8, len(repos_df)-1), min(4, len(repos_df)-1))
 
-        # numeric features scaled to zero mean and unit variance
-        # so that stars (0-100s) don't dominate over forks (0-10s)
-        nf = StandardScaler().fit_transform(repos_df[["stars","forks","size_kb","open_issues"]].fillna(0).values)
-
-        # combining both feature types into one matrix
+        text     = (repos_df["name"].fillna("") + " " + repos_df["description"].fillna("")).tolist()
+        tfidf    = TfidfVectorizer(max_features=20, stop_words="english")
+        tf       = tfidf.fit_transform(text).toarray()
+        nf       = StandardScaler().fit_transform(
+                       repos_df[["stars","forks","size_kb","open_issues"]].fillna(0).values)
         combined = np.hstack([nf, tf])
 
-        # running K-Means and projecting to 2D with PCA for the scatter plot
-        km = KMeans(n_clusters=k, random_state=42, n_init=10)
+        km     = KMeans(n_clusters=k, random_state=42, n_init=10)
         labels = km.fit_predict(combined)
         coords = PCA(n_components=2).fit_transform(combined)
 
-        # interactive scatter plot where each point is a repo, colored by cluster
-        # hovering shows the repo name and language
         plot_df = pd.DataFrame({
-            "x": coords[:,0], "y": coords[:,1],
-            "cluster": labels.astype(str), "name": repos_df["name"],
-            "language": repos_df["language"]
+            "PC1": coords[:,0], "PC2": coords[:,1],
+            "Cluster": [f"Cluster {l}" for l in labels],
+            "Repo": repos_df["name"].values,
+            "Language": repos_df["language"].values,
         })
-        fig = px.scatter(plot_df, x="x", y="y", color="cluster",
-                         hover_data=["name","language"],
-                         title=f"Repository Clusters (k={k})", width=800, height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        fig = px.scatter(
+            plot_df, x="PC1", y="PC2", color="Cluster",
+            hover_data={"Repo": True, "Language": True, "PC1": False, "PC2": False},
+            color_discrete_sequence=COLORS,
+            title=f"Repository Map — {k} Clusters (PCA projection)",
+        )
+        fig.update_traces(marker=dict(size=14, line=dict(width=1.5, color="#0f1320")))
+        fig.update_layout(**PLOT_LAYOUT, height=460,
+                          xaxis_title="Principal Component 1",
+                          yaxis_title="Principal Component 2")
+        st.plotly_chart(fig, width='stretch')
 
-        # listing which repos ended up in each cluster
+        cols = st.columns(k)
         for c in range(k):
             members = repos_df.iloc[labels == c]["name"].tolist()
-            st.write(f"**Cluster {c}** ({len(members)} repos): {', '.join(members[:8])}")
+            with cols[c]:
+                st.markdown(f"**Cluster {c}** &nbsp; `{len(members)} repos`")
+                for m in members:
+                    st.markdown(f'<span class="cluster-chip">{m}</span>', unsafe_allow_html=True)
+    else:
+        st.info("Need at least 4 repositories for clustering.")
 
-    #  ML Technique 2: Time Series Forecasting 
-    # using linear regression on monthly commit counts to find the trend
-    # and predict the next 6 months of activity
-    st.subheader("Commit Activity Forecasting")
-    if not commits_df.empty and len(commits_df) > 10:
-        from sklearn.linear_model import LinearRegression
+    st.markdown("<br>", unsafe_allow_html=True)
 
-        # aggregate commits by month
-        monthly = commits_df.set_index("date").resample("M").size().reset_index(name="commits")
+    # ── Forecasting ──
+    section("Commit Activity Forecasting (Linear Regression)")
+    insight("A linear regression is fitted on monthly commit counts to extract the <b>trend</b> "
+            "and project <b>6 months forward</b>. R² measures how well the linear model fits.")
+
+    if not commits_df.empty and len(commits_df) >= 5:
+        monthly = commits_df.set_index("date").resample("ME").size().reset_index(name="commits")
         monthly["idx"] = range(len(monthly))
 
-        # fit a simple linear regression: month_number -> commit_count
         X, y = monthly["idx"].values.reshape(-1,1), monthly["commits"].values
-        lr = LinearRegression().fit(X, y)
+        lr    = LinearRegression().fit(X, y)
         trend = lr.predict(X)
 
-        # forecast the next 6 months using the same linear model
-        # clamping to 0 so we don't predict negative commits
-        fX = np.arange(len(monthly), len(monthly)+6).reshape(-1,1)
-        forecast = np.maximum(lr.predict(fX), 0)
-        future_dates = pd.date_range(monthly["date"].max() + pd.DateOffset(months=1), periods=6, freq="M")
+        fX           = np.arange(len(monthly), len(monthly)+6).reshape(-1,1)
+        forecast     = np.maximum(lr.predict(fX), 0)
+        future_dates = pd.date_range(
+            monthly["date"].max() + pd.DateOffset(months=1), periods=6, freq="ME")
 
-        # combined chart: actual bars + trend line + forecast bars
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=monthly["date"], y=monthly["commits"], name="Actual", opacity=0.5))
-        fig.add_trace(go.Scatter(x=monthly["date"], y=trend, name="Trend", line=dict(dash="dash", color="red")))
-        fig.add_trace(go.Bar(x=future_dates, y=forecast, name="Forecast", opacity=0.3, marker_color="red"))
-        fig.update_layout(title="Commit Trend & Forecast", height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.add_trace(go.Bar(x=monthly["date"], y=monthly["commits"],
+                             name="Actual", marker_color="#6e40c9", opacity=0.7))
+        fig.add_trace(go.Scatter(x=monthly["date"], y=trend,
+                                 name="Trend", line=dict(dash="dash", color="#f472b6", width=2.5)))
+        fig.add_trace(go.Bar(x=future_dates, y=forecast,
+                             name="Forecast", marker_color="#34d399", opacity=0.5))
+        fig.update_layout(**PLOT_LAYOUT, height=380,
+                          barmode="overlay", title="Commit Trend & 6-Month Forecast",
+                          legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0))
+        st.plotly_chart(fig, width='stretch')
 
-        # showing the trend direction and R-squared value
-        # R-squared tells us how well the linear model fits the data
-        direction = "increasing" if lr.coef_[0] > 0 else "decreasing"
-        st.write(f"**Trend:** {direction} by ~{abs(lr.coef_[0]):.1f} commits/month (R²={lr.score(X,y):.3f})")
+        direction = "📈 increasing" if lr.coef_[0] > 0 else "📉 decreasing"
+        r2        = lr.score(X, y)
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Trend Direction", direction.split()[1].capitalize())
+        m2.metric("Rate",            f"{lr.coef_[0]:+.2f} commits/month")
+        m3.metric("R²",             f"{r2:.3f}")
+
+        if r2 < 0.2:
+            insight("<b>Low R²</b> indicates commit frequency is irregular — "
+                    "a linear model captures the general direction but not the variance.")
+    else:
+        st.info("Need at least 5 commits for forecasting.")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 5 · MODEL COMPARISON
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "⚖️ Model Comparison":
+    st.markdown('<div class="page-title">LLM Model Comparison</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="page-sub">Side-by-side benchmark — <b>{model_a}</b> vs <b>{model_b}</b></div>',
+                unsafe_allow_html=True)
 
-# PAGE 5: MODEL COMPARISON
-# The assignment requires comparing at least 2 LLM models.
-# This page runs the exact same prompt through both llama3.1 and
-# mistral side by side, then shows a metrics table and bar chart
-# comparing latency, token count, and throughput.
-# The user can also type their own custom prompt to test both models.
+    test_prompt = st.text_area(
+        "Custom test prompt (or use the default)",
+        value=(
+            f"Analyze @{username}'s GitHub profile and give 3 specific, actionable recommendations "
+            "to strengthen their open-source presence for job applications."
+        ),
+        height=100,
+    )
 
-elif page == "Model Comparison":
-    st.title("LLM Model Comparison")
-    st.info(f"Comparing **{model_a}** vs **{model_b}**")
+    if st.button("⚖️ Run Comparison", type="primary"):
+        llm1 = LLMAnalyzer(provider=llm_provider, model=model_a,
+                           ollama_url=ollama_url, api_key=groq_api_key or None)
+        llm2 = LLMAnalyzer(provider=llm_provider, model=model_b,
+                           ollama_url=ollama_url, api_key=groq_api_key or None)
 
-    # editable text area with a default prompt, the user can change it
-    test_prompt = st.text_area("Test Prompt", value=(
-        "Analyze this developer's GitHub profile and suggest 3 ways to improve their open source presence. "
-        "Be specific and actionable."
-    ))
-
-    if st.button("Run Comparison", type="primary"):
-        # creating two separate analyzer instances, one per model
-        llm1 = LLMAnalyzer(provider="ollama", model=model_a, ollama_url=ollama_url)
-        llm2 = LLMAnalyzer(provider="ollama", model=model_b, ollama_url=ollama_url)
-
-        # running both models and showing results in two columns
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader(f"{model_a}")
-            with st.spinner(f"Running {model_a}..."):
+            st.markdown(f"### 🤖 {model_a}")
+            with st.spinner(f"Running {model_a}…"):
                 r1 = llm1.analyze(test_prompt, "You are a GitHub expert.")
-            st.success(f"{r1.latency_seconds}s | {r1.completion_tokens} tokens")
-            st.markdown(r1.response)
+            st.markdown(f'<div class="result-box">{r1.response.replace(chr(10),"<br>")}</div>',
+                        unsafe_allow_html=True)
 
         with col2:
-            st.subheader(f"{model_b}")
-            with st.spinner(f"Running {model_b}..."):
+            st.markdown(f"### 🤖 {model_b}")
+            with st.spinner(f"Running {model_b}…"):
                 r2 = llm2.analyze(test_prompt, "You are a GitHub expert.")
-            st.success(f"{r2.latency_seconds}s | {r2.completion_tokens} tokens")
-            st.markdown(r2.response)
+            st.markdown(f'<div class="result-box">{r2.response.replace(chr(10),"<br>")}</div>',
+                        unsafe_allow_html=True)
 
-        #  Performance Metrics Table 
-        # showing a direct comparison of both models' numbers
-        st.subheader("Performance Metrics")
+        # ── metrics ──
+        section("Performance Comparison")
+
+        def tps(r): return round(r.completion_tokens / max(r.latency_seconds, 0.1), 1)
+
+        faster  = model_a if r1.latency_seconds <= r2.latency_seconds else model_b
+        denser  = model_a if r1.completion_tokens >= r2.completion_tokens else model_b
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric(f"{model_a} Latency",    f"{r1.latency_seconds:.1f}s",
+                  delta=f"{r1.latency_seconds - r2.latency_seconds:+.1f}s vs {model_b}",
+                  delta_color="inverse")
+        m2.metric(f"{model_b} Latency",    f"{r2.latency_seconds:.1f}s")
+        m3.metric(f"{model_a} Throughput", f"{tps(r1)} tok/s")
+        m4.metric(f"{model_b} Throughput", f"{tps(r2)} tok/s")
+
+        insight(f"<b>Faster model:</b> {faster} &nbsp;·&nbsp; "
+                f"<b>More tokens generated:</b> {denser}")
+
         metrics_df = pd.DataFrame([
-            {"Metric": "Latency (s)", model_a: r1.latency_seconds, model_b: r2.latency_seconds},
-            {"Metric": "Tokens Generated", model_a: r1.completion_tokens, model_b: r2.completion_tokens},
-            {"Metric": "Tokens/sec",
-             model_a: round(r1.completion_tokens/max(r1.latency_seconds,0.1),1),
-             model_b: round(r2.completion_tokens/max(r2.latency_seconds,0.1),1)},
-            {"Metric": "Cost (USD)", model_a: r1.cost_usd, model_b: r2.cost_usd},
+            {"Metric": "Latency (s)",      model_a: r1.latency_seconds,   model_b: r2.latency_seconds},
+            {"Metric": "Tokens Generated", model_a: r1.completion_tokens,  model_b: r2.completion_tokens},
+            {"Metric": "Tokens / sec",     model_a: tps(r1),               model_b: tps(r2)},
+            {"Metric": "Prompt Tokens",    model_a: r1.prompt_tokens,      model_b: r2.prompt_tokens},
+            {"Metric": "Cost (USD)",       model_a: r1.cost_usd,           model_b: r2.cost_usd},
         ])
-        st.dataframe(metrics_df, use_container_width=True)
+        st.dataframe(metrics_df, width='stretch', hide_index=True)
 
-        # grouped bar chart for visual comparison of latency and throughput
         fig = go.Figure(data=[
-            go.Bar(name=model_a, x=["Latency (s)","Tokens/sec"],
-                   y=[r1.latency_seconds, r1.completion_tokens/max(r1.latency_seconds,0.1)]),
-            go.Bar(name=model_b, x=["Latency (s)","Tokens/sec"],
-                   y=[r2.latency_seconds, r2.completion_tokens/max(r2.latency_seconds,0.1)])
+            go.Bar(name=model_a,
+                   x=["Latency (s)", "Tokens/sec", "Tokens Generated"],
+                   y=[r1.latency_seconds, tps(r1), r1.completion_tokens],
+                   marker_color="#6e40c9"),
+            go.Bar(name=model_b,
+                   x=["Latency (s)", "Tokens/sec", "Tokens Generated"],
+                   y=[r2.latency_seconds, tps(r2), r2.completion_tokens],
+                   marker_color="#34d399"),
         ])
-        fig.update_layout(barmode="group", title="Model Performance Comparison", height=350)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(**PLOT_LAYOUT, barmode="group",
+                          height=340, title="Model Performance Benchmark",
+                          legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0))
+        st.plotly_chart(fig, width='stretch')
