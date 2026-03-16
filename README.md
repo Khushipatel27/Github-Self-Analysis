@@ -8,7 +8,6 @@
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-1.2%2B-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**[▶ Watch the Demo](https://youtu.be/kv3Vd-hu0kM)** · **[Live Dashboard (Coming Soon)](#)** · [Technical Report](docs/technical_report.pdf)
 
 ---
 
