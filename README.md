@@ -1,3 +1,5 @@
+<div align="center">
+
 # AI-Powered GitHub Self-Analysis
 
 > Treat your GitHub profile as a dataset. This pipeline collects your full commit history, repository metadata, and code fingerprint — then runs **local LLMs** and classical ML to surface insights a recruiter or career counselor would take hours to compile.
@@ -8,7 +10,7 @@
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-1.2%2B-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-
+</div>
 ---
 
 ## What It Does
